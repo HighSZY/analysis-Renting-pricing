@@ -47,8 +47,9 @@ class LunwenPipeline:
         try:
             with self.conn.cursor() as cursor:
                 sql = """
-                    insert into roomInfo(id, name , pricing, upload_time, address, space_area, space_size, space_rule)
-                        values ('%s', '%s', '%d', date_format('%s 0:0:0', '%%Y-%%m-%%d %%H:%%i:%%s'), '%s', '%s', '%f', '%s');
+                    insert into roomInfo
+                        (id, name , pricing, upload_time, address, space_area, space_size, space_rule, space_high, rent_type)
+                        values ('%s', '%s', '%d', date_format('%s 0:0:0', '%%Y-%%m-%%d %%H:%%i:%%s'), '%s', '%s', '%f', '%s', '%s', '%s');
                 """
                 cursor.execute(
                     sql % (
@@ -57,7 +58,9 @@ class LunwenPipeline:
                         item['address'],
                         item['space_area'],
                         float(self.decorate_space_size(item['space_size'])),
-                        item['space_rule']
+                        item['space_rule'],
+                        item['space_high'],
+                        item['rent_type']
                     )
                     # sql % (
                     #     '1161203541303296', '包物业 步行街 老西门 四医院 精装电梯大两房 拎包入住',
