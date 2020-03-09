@@ -1,0 +1,85 @@
+# -*- coding: utf-8 -*-
+import logging
+import re
+
+# Define your item pipelines here
+#
+# Don't forget to add your pipeline to the ITEM_PIPELINES setting
+# See: https://docs.scrapy.org/en/latest/topics/item-pipeline.html
+import pymysql as pq
+
+
+class LunwenPipeline:
+
+    def __init__(self):
+        logging.info('\t连接数据库\t')
+        self.conn = pq.connect(host='134.175.16.232',
+                               user='sunzeyu',
+                               password='2168',
+                               database='lunwen')
+        logging.info('\t数据库连接完成\t')
+
+    @staticmethod
+    def decorate_upload_time(time):
+        time_list = re.findall(r'\d+', time)
+        year = 2020 if len(time_list) < 1 else time_list[0]
+        month = 3 if len(time_list) < 2 else time_list[1]
+        day = 1 if len(time_list) < 3 else time_list[2]
+        return '{}-{}-{}'.format(
+            year, month, day
+        )
+
+    @staticmethod
+    def decorate_space_size(space_size):
+        return re.search(r'\d+(\.\d+)?', space_size).group(0)
+
+    def process_item(self, item, spider):
+        logging.info('\t数据准备写入mysql\t')
+        try:
+            self.conn.ping()
+            logging.info('\t数据库活跃\t')
+        except Exception as e:
+            logging.info('\t数据库失去连接{},准备重新连接\t'.format(e))
+            self.conn = pq.connect(host='134.175.16.232',
+                                   user='sunzeyu',
+                                   password='2168',
+                                   database='lunwen')
+        try:
+            with self.conn.cursor() as cursor:
+                sql = """
+                    insert into roomInfo(id, name , pricing, upload_time, address, space_area, space_size, space_rule)
+                        values ('%s', '%s', '%d', date_format('%s 0:0:0', '%%Y-%%m-%%d %%H:%%i:%%s'), '%s', '%s', '%f', '%s');
+                """
+                cursor.execute(
+                    sql % (
+                        item['id'], item['name'], int(item['pricing']),
+                        self.decorate_upload_time(item['upload_time']),
+                        item['address'],
+                        item['space_area'],
+                        float(self.decorate_space_size(item['space_size'])),
+                        item['space_rule']
+                    )
+                    # sql % (
+                    #     '1161203541303296', '包物业 步行街 老西门 四医院 精装电梯大两房 拎包入住',
+                    #     int(120),
+                    #     '2018-02-03',
+                    #     '老西门-武陵-柳叶湖',
+                    #     '老西门-武陵-柳叶湖',
+                    #     float(150.0),
+                    #     '老西门-武陵-柳叶湖'
+                    # )
+                )
+            self.conn.commit()
+            logging.info('\t数据写入数据库完成\t')
+        except Exception as e:
+            logging.info('\t数据写入失败 {}\n\t'.format(e))
+        finally:
+            pass
+
+    def close_spider(self, spider):
+        self.conn.close()
+
+
+if __name__ == '__main__':
+    test = LunwenPipeline()
+    test.process_item('', '')
