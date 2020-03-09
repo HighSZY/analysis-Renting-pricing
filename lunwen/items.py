@@ -81,3 +81,6 @@ class LunwenBaseItem(scrapy.Item):
     rent_type = scrapy.Field(
         output_processor=TakeFirst(),
     )
+    url = scrapy.Field(
+        output_processor=TakeFirst(),
+    )

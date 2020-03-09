@@ -7,7 +7,7 @@ import redis
 import requests
 from fontTools.ttLib import TTFont
 from lxml import etree
-from scrapy.linkextractors.lxmlhtml import LxmlLinkExtractor
+from ..extract_links import SelfLinkExtractor
 from scrapy.loader import ItemLoader
 from scrapy.selector import Selector
 from scrapy_redis.spiders import RedisSpider
@@ -18,10 +18,10 @@ from ..items import LunwenBaseItem
 class Spider(RedisSpider):
     name = "paper"
     redis_key = 'paper:start_urls'
-    _link_extractor = LxmlLinkExtractor(
-        allow=['isauction'], allow_domains='chd.zu.anjuke.com',
-        restrict_xpaths=['//div[@class="maincontent"]'], unique=True
-    )
+    # _link_extractor = LxmlLinkExtractor(
+    #     allow=['isauction'], allow_domains='chd.zu.anjuke.com',
+    #     restrict_xpaths=['//div[@class="maincontent"]'], unique=True
+    # )
     _base_path = os.getcwd()
     REDIS_POOL = redis.ConnectionPool(host='134.175.16.232', port=6379, password='2168', db=0)
     CONN = redis.Redis(connection_pool=REDIS_POOL)
@@ -108,12 +108,14 @@ class Spider(RedisSpider):
     def parse(self, response):
         # https://chd.zu.anjuke.com/fangyuan/wulingb/p1
         # https://chd.zu.anjuke.com/fangyuan/1216188580421633?isauction=1&shangquan_id=25877
+        link_extractor = SelfLinkExtractor(response)
         url = response.request.url
         url = url[0: -1] if url[-1] == '/' else url
         page_name = os.path.basename(url)
         logging.info('\t分析网页组成 {}\t'.format(url))
         if re.search(r'wulingb', url):
-            links = self._link_extractor.extract_links(response)
+            # links = self._link_extractor.extract_links(response)
+            links = link_extractor.extract_url()
             logging.info('\tl页面{}，成功获取第二层 {} 页面链接\n\t'.format(page_name, links))
             for link in links:
                 self.CONN.rpush(self.redis_key, link.url)
@@ -156,6 +158,7 @@ class Spider(RedisSpider):
                               '//li[@class="title-label-item rent"]/text()')
         item_loader.add_xpath('space_high',
                               '//li[contains(@class, "house-info-item")][4]/span[@class="info"]/text()')
+        item_loader.add_value('url', response.request.url)
         return item_loader.load_item()
         # print(item_loader.load_item())
 
