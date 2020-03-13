@@ -1,12 +1,16 @@
-from scrapy.downloadermiddlewares.useragent import UserAgentMiddleware
-from scrapy.http import TextResponse
-from lunwen.spiders.lunwen import Spider
-import requests
-import re
 import logging
+import random
+import re
 import time
 
-import random
+import requests
+from scrapy.downloadermiddlewares.useragent import UserAgentMiddleware
+from scrapy.downloadermiddlewares.redirect import RedirectMiddleware
+from scrapy.http import TextResponse
+from six.moves.urllib.parse import urljoin
+from w3lib.url import safe_url_string
+
+from ..database import self_redis, redis_key
 
 user_agent_list = [
     "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.1 "
@@ -79,13 +83,29 @@ class TaiYangIpAgent:
         pass
 
 
-class Reset:
+# class Reset:
+#
+#     def process_request(self, request, spider):
+#         if re.search(r'wulingb', request.url):
+#             if not Spider.CONN.llen(Spider.redis_key):
+#                 logging.info('{} 没有重定向站点，可以请求'.format(request.url))
+#                 Spider.CONN.rpush(Spider.redis_key, request.url)
+#             else:
+#                 logging.info('{} 有重定向站点，无法请求'.format(request.url))
+#                 return TextResponse(url=request.url, request=request)
 
-    def process_request(self, request, spider):
-        if re.search(r'wulingb', request.url):
-            if not Spider.CONN.llen(Spider.redis_key):
-                logging.info('{} 没有重定向站点，可以请求'.format(request.url))
-                Spider.CONN.rpush(Spider.redis_key, request.url)
-            else:
-                logging.info('{} 有重定向站点，无法请求'.format(request.url))
-                return TextResponse(url=request.url, request=request)
+
+class Catch302:
+
+    _catch_code = (302, )
+
+    def process_response(self, request, response, spider):
+        logging.info('\t发生302重定向')
+        if response.status in self._catch_code:
+            location = safe_url_string(response.headers['location'])
+            redirected_url = urljoin(request.url, location)
+            logging.info('\t{}-->{}'.format(response.url, redirected_url))
+            # with self_redis.get_redis_conn() as conn:
+            #     conn.rpush(redis_key, )
+            print(response.url, request.url, redirected_url)
+

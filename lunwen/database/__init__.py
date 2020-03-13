@@ -6,6 +6,8 @@ import requests
 from .mysql import SelfMysql
 from .redis import SelfRedis
 
+redis_key = 'paper:start_urls'
+
 self_redis = SelfRedis(host='134.175.16.232',
                        port=6379,
                        password='2168',

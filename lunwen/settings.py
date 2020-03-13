@@ -61,6 +61,7 @@ DOWNLOADER_MIDDLEWARES = {
     # 'lunwen.middlewares.LunwenDownloaderMiddleware': 543,
     'lunwen.middlewares.download.UserAgent': 544,
     'lunwen.middlewares.download.IPAgent': 545,
+    'lunwen.middlewares.download.Catch302': 550,
     # 'lunwen.middlewares.download.Reset': 400,
     # 'scrapy.downloadermiddlewares.retry.RetryMiddleware': None,
 }
