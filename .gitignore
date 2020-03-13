@@ -3,11 +3,3 @@
 *.txt
 *.log
 .idea
-lunwen/__pycache__/extract_links.cpython-37.pyc
-lunwen/__pycache__/pipelines.cpython-37.pyc
-lunwen/__pycache__/settings.cpython-37.pyc
-lunwen/database/__pycache__/__init__.cpython-37.pyc
-lunwen/database/__pycache__/mysql.cpython-37.pyc
-lunwen/database/__pycache__/redis.cpython-37.pyc
-lunwen/middlewares/__pycache__/download.cpython-37.pyc
-lunwen/spiders/__pycache__/lunwen.cpython-37.pyc
