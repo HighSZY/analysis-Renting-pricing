@@ -22,8 +22,6 @@ class Spider(RedisSpider):
     #     restrict_xpaths=['//div[@class="maincontent"]'], unique=True
     # )
     _base_path = os.getcwd()
-    counts = 0
-    total_counts = 0
 
     def _font_secret_parse(self, response):
 
