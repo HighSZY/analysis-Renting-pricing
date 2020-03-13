@@ -8,10 +8,13 @@ import requests
 from fontTools.ttLib import TTFont
 from lxml import etree
 from ..extract_links import SelfLinkExtractor
+from fontTools.ttLib import TTFont
 from scrapy.loader import ItemLoader
 from scrapy.selector import Selector
 from scrapy_redis.spiders import RedisSpider
 
+from ..database import self_redis, remove_fail_ip
+from ..extract_links import SelfLinkExtractor
 from ..items import LunwenBaseItem
 
 
@@ -23,21 +26,10 @@ class Spider(RedisSpider):
     #     restrict_xpaths=['//div[@class="maincontent"]'], unique=True
     # )
     _base_path = os.getcwd()
-    REDIS_POOL = redis.ConnectionPool(host='134.175.16.232', port=6379, password='2168', db=0)
-    CONN = redis.Redis(connection_pool=REDIS_POOL)
+    counts = 0
+    total_counts = 0
 
     def _font_secret_parse(self, response):
-        def remove_fail_ip(request):
-            logging.info('\t失效移除，准备移除\t')
-            res = None
-            try:
-                res = requests.get('http://134.175.16.232:5010/delete?proxy={}'.format(request.meta['proxy'][2:]))
-            except Exception as e:
-                logging.info('\t移除失败{}\t'.format(e))
-            if res.status_code == 200:
-                logging.info('\t移除成功\t')
-            else:
-                logging.info('\t移除失败{}\t'.format(res.status_code))
 
         def _get_font():
             try:
@@ -114,22 +106,29 @@ class Spider(RedisSpider):
         page_name = os.path.basename(url)
         logging.info('\t分析网页组成 {}\t'.format(url))
         if re.search(r'wulingb', url):
+            # if not len(response.body):
+            #     logging.info('request 重新添加成功!')
+            #     return None
             # links = self._link_extractor.extract_links(response)
             links = link_extractor.extract_url()
-            logging.info('\tl页面{}，成功获取第二层 {} 页面链接\n\t'.format(page_name, links))
+            # logging.info('\tl页面{}，成功获取第二层 {} 页面链接\n\t'.format(page_name, links))
             for link in links:
-                self.CONN.rpush(self.redis_key, link.url)
-            logging.info('\t第二层链接装载成功---done---\t')
+                with self_redis.get_redis_conn() as redis_conn:
+                    redis_conn.rpush(self.redis_key, link)
+            # logging.info('\t第二层链接装载成功---done---\t')
             next_url = Selector(response=response)
-            next_url = next_url.xpath('//i[@class="aDotted"]/following-sibling::a/@href').extract_first()
+            next_url = next_url.xpath('//div[@class="multi-page"]/a[last()]/@href').extract_first()
             if next_url is None:
                 if re.search(r'\d+', page_name).group(0) == 10:
                     logging.info('当前页面为{},正常结束'.format(page_name))
                 else:
                     logging.info('当前页面为{},非正常结束！！！！！'.format(page_name))
             else:
-                self.CONN.rpush(self.redis_key, next_url)
+                with self_redis.get_redis_conn() as redis_conn:
+                    redis_conn.rpush(self.redis_key, next_url)
                 logging.info('\t{}写入->Redis'.format(next_url))
+        elif re.search(r'navigation', url):
+            logging.info('\t被导航到主页面，丢弃')
         else:
             return self.parse_main_page(response)
 
@@ -171,8 +170,6 @@ class Spider(RedisSpider):
                     request_time = request.meta['retry_times']
                 except Exception as e:
                     logging.info('{}'.format(e))
-                line = '\t{}\t\n\t一共请求次数：{}\t\n\t最终请求成功: {}\t'.format(request,
-                                                                      request_time,
-                                                                      response.status)
+                line = '\n{}\t一共请求次数：{}'.format(request, request_time)
                 file.writelines(line)
                 logging.info('\t本条请求记录在册\t')

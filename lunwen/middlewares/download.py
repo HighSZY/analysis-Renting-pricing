@@ -1,5 +1,3 @@
-from scrapy.downloadermiddlewares.useragent import UserAgentMiddleware
-from scrapy.downloadermiddlewares.redirect import RedirectMiddleware
 import redis
 import requests
 import re
@@ -7,6 +5,15 @@ import logging
 import time
 
 import random
+import logging
+import random
+import re
+import time
+
+import requests
+from scrapy.downloadermiddlewares.useragent import UserAgentMiddleware
+
+from ..database import *
 
 user_agent_list = [
     "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.1 "
@@ -58,19 +65,11 @@ class IPAgent:
     _ips_list = list()
     _ips_path = 'paper:'
 
-    # def __init__(self):
-    #     self.conn = redis.Redis(host='134.175.16.232', port=6379, password='2168', db=0)
-    #
-    # def load_to_redis(self, data_list, tp):
-    #     while not len(data_list):
-    #         self.conn.lpush(self._ips_path + tp, data_list.pop())
-    #     logging.info('\t数据装载成功\t')
-
     @staticmethod
     def get_ip_from_ip_proxy_pool():
         res = requests.get('http://134.175.16.232:5010/get').json()
         while len(res) != 8:
-            time.sleep(3)
+            time.sleep(100)
             logging.info('\t有效IP为空，等待新ip加入\t')
             res = requests.get('http://134.175.16.232:5010/get').json()
             logging.info('\t等待3s结束\t')
@@ -78,12 +77,67 @@ class IPAgent:
         return res['proxy']
 
     def process_request(self, request, spider):
-        # req_header_type = re.search(r'(^htt.*:)', request.url).group(1)
-        # ip = self.get_ip(req_header_type)
-        # logging.info('\t从Redis提取IP: {}\t'.format(ip))
-        # while not isinstance(ip, type):
-        #     logging.info('\t再次尝试从Redis提取IP: {}\t'.format(ip))
-        #     ip = self.get_ip(req_header_type)
-        # logging.info('\t使用代理{ip}开始获取内容\t'.format(ip=ip))
-        # request.meta[req_header_type] = ip.decode('utf-8')
         request.meta['proxy'] = self.get_ip_from_ip_proxy_pool()
+
+
+class TaiYangIpAgent:
+
+    def __init__(self):
+        pass
+
+
+# class Reset:
+#
+#     def process_request(self, request, spider):
+#         if re.search(r'wulingb', request.url):
+#             if not Spider.CONN.llen(Spider.redis_key):
+#                 logging.info('{} 没有重定向站点，可以请求'.format(request.url))
+#                 Spider.CONN.rpush(Spider.redis_key, request.url)
+#             else:
+#                 logging.info('{} 有重定向站点，无法请求'.format(request.url))
+#                 return TextResponse(url=request.url, request=request)
+
+from scrapy.downloadermiddlewares.redirect import BaseRedirectMiddleware
+from six.moves.urllib.parse import urljoin
+from w3lib.url import safe_url_string
+
+
+class Catch302(BaseRedirectMiddleware):
+    _catch_code = (302,)
+
+    def process_response(self, request, response, spider):
+        if (request.meta.get('dont_redirect', False) or
+                response.status in getattr(spider, 'handle_httpstatus_list', []) or
+                response.status in request.meta.get('handle_httpstatus_list', []) or
+                request.meta.get('handle_httpstatus_all', False)):
+            return response
+
+        allowed_status = (301, 302, 303, 307, 308)
+        if 'Location' not in response.headers or response.status not in allowed_status:
+            return response
+
+        location = safe_url_string(response.headers['location'])
+
+        redirected_url = urljoin(request.url, location)
+
+        if response.status in self._catch_code and re.search(r'namespace=anjuke_zufang_detail_pc', redirected_url):
+            logging.info('\t302到防爬站，将地址重新写入redis')
+            self_redis.exec_rpush(redis_key, request.url)
+            return response
+
+        if response.status in (301, 307, 308) or request.method == 'HEAD':
+            redirected = request.replace(url=redirected_url)
+            return self._redirect(redirected, request, spider, response.status)
+
+        redirected = self._redirect_request_using_get(request, redirected_url)
+        return self._redirect(redirected, request, spider, response.status)
+
+
+from scrapy.downloadermiddlewares.retry import RetryMiddleware
+
+
+class RemoveInvalidIp(RetryMiddleware):
+
+    def _retry(self, request, reason, spider):
+        remove_fail_ip(request)
+        return super()._retry(request, reason, spider)
