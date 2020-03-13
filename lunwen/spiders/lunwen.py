@@ -3,12 +3,8 @@ import logging
 import os
 import re
 
-import redis
-import requests
 from fontTools.ttLib import TTFont
 from lxml import etree
-from ..extract_links import SelfLinkExtractor
-from fontTools.ttLib import TTFont
 from scrapy.loader import ItemLoader
 from scrapy.selector import Selector
 from scrapy_redis.spiders import RedisSpider
