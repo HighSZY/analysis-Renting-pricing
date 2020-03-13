@@ -107,13 +107,13 @@ class Spider(RedisSpider):
             #     return None
             # links = self._link_extractor.extract_links(response)
             links = link_extractor.extract_url()
-            logging.info('\tl页面{}，成功获取第二层 {} 页面链接\n\t'.format(page_name, links))
+            # logging.info('\tl页面{}，成功获取第二层 {} 页面链接\n\t'.format(page_name, links))
             for link in links:
                 with self_redis.get_redis_conn() as redis_conn:
                     redis_conn.rpush(self.redis_key, link)
-            logging.info('\t第二层链接装载成功---done---\t')
+            # logging.info('\t第二层链接装载成功---done---\t')
             next_url = Selector(response=response)
-            next_url = next_url.xpath('//i[@class="aDotted"]/following-sibling::a/@href').extract_first()
+            next_url = next_url.xpath('//div[@class="multi-page"]/a[last()]/@href').extract_first()
             if next_url is None:
                 if re.search(r'\d+', page_name).group(0) == 10:
                     logging.info('当前页面为{},正常结束'.format(page_name))
@@ -123,6 +123,8 @@ class Spider(RedisSpider):
                 with self_redis.get_redis_conn() as redis_conn:
                     redis_conn.rpush(self.redis_key, next_url)
                 logging.info('\t{}写入->Redis'.format(next_url))
+        elif re.search(r'navigation', url):
+            logging.info('\t被导航到主页面，丢弃')
         else:
             return self.parse_main_page(response)
 

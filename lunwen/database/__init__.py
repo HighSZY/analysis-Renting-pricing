@@ -34,7 +34,7 @@ def remove_fail_ip(request):
     except Exception as e:
         logging.info('\t移除失败{}\t'.format(e))
     if res.status_code == 200:
-        logging.info('\t移除成功\t')
+        logging.info('\t{} 移除成功\t'.format(request.meta['proxy'][2:]))
     else:
         logging.info('\t移除失败{}\t'.format(res.status_code))
 

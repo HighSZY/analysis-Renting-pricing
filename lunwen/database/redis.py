@@ -1,4 +1,5 @@
 import redis
+import logging
 from redis import ConnectionPool
 
 
@@ -17,7 +18,6 @@ class SelfRedis:
             'password': password,
             'db': db
         }
-        print(self.dt)
         self._reset_conn_pool()
 
     def _reset_conn_pool(self):
@@ -33,3 +33,8 @@ class SelfRedis:
         except Exception:
             return False
         return is_or_not_right
+
+    def exec_rpush(self, key, content):
+        with self.get_redis_conn() as conn:
+            conn.rpush(key, content)
+        logging.info('\t{} {} 写入完成'.format(key, content))

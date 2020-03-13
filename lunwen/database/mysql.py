@@ -25,9 +25,9 @@ class SelfMysql:
             self.valid_conn()
             with self.get_cursor() as cursor:
                 res = cursor.execute(order)
-            logging.info('\t{}--执行--Done\t'.format(order))
+            logging.info('\t{}--------执行--------Done\t'.format(order))
         except Exception as e:
-            logging.info('\t{}--执行--Error--{}'.format(order, e))
+            logging.info('\t{}--------执行--------Error--------{}'.format(order, e))
         self.conn.commit()
         return res
 

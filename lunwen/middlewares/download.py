@@ -5,12 +5,8 @@ import time
 
 import requests
 from scrapy.downloadermiddlewares.useragent import UserAgentMiddleware
-from scrapy.downloadermiddlewares.redirect import RedirectMiddleware
-from scrapy.http import TextResponse
-from six.moves.urllib.parse import urljoin
-from w3lib.url import safe_url_string
 
-from ..database import self_redis, redis_key
+from ..database import *
 
 user_agent_list = [
     "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.1 "
@@ -66,7 +62,7 @@ class IPAgent:
     def get_ip_from_ip_proxy_pool():
         res = requests.get('http://134.175.16.232:5010/get').json()
         while len(res) != 8:
-            time.sleep(3)
+            time.sleep(100)
             logging.info('\t有效IP为空，等待新ip加入\t')
             res = requests.get('http://134.175.16.232:5010/get').json()
             logging.info('\t等待3s结束\t')
@@ -94,18 +90,47 @@ class TaiYangIpAgent:
 #                 logging.info('{} 有重定向站点，无法请求'.format(request.url))
 #                 return TextResponse(url=request.url, request=request)
 
+from scrapy.downloadermiddlewares.redirect import BaseRedirectMiddleware
+from six.moves.urllib.parse import urljoin
+from w3lib.url import safe_url_string
 
-class Catch302:
 
-    _catch_code = (302, )
+class Catch302(BaseRedirectMiddleware):
+    _catch_code = (302,)
 
     def process_response(self, request, response, spider):
-        logging.info('\t发生302重定向')
-        if response.status in self._catch_code:
-            location = safe_url_string(response.headers['location'])
-            redirected_url = urljoin(request.url, location)
-            logging.info('\t{}-->{}'.format(response.url, redirected_url))
-            # with self_redis.get_redis_conn() as conn:
-            #     conn.rpush(redis_key, )
-            print(response.url, request.url, redirected_url)
+        if (request.meta.get('dont_redirect', False) or
+                response.status in getattr(spider, 'handle_httpstatus_list', []) or
+                response.status in request.meta.get('handle_httpstatus_list', []) or
+                request.meta.get('handle_httpstatus_all', False)):
+            return response
 
+        allowed_status = (301, 302, 303, 307, 308)
+        if 'Location' not in response.headers or response.status not in allowed_status:
+            return response
+
+        location = safe_url_string(response.headers['location'])
+
+        redirected_url = urljoin(request.url, location)
+
+        if response.status in self._catch_code and re.search(r'namespace=anjuke_zufang_detail_pc', redirected_url):
+            logging.info('\t302到防爬站，将地址重新写入redis')
+            self_redis.exec_rpush(redis_key, request.url)
+            return response
+
+        if response.status in (301, 307, 308) or request.method == 'HEAD':
+            redirected = request.replace(url=redirected_url)
+            return self._redirect(redirected, request, spider, response.status)
+
+        redirected = self._redirect_request_using_get(request, redirected_url)
+        return self._redirect(redirected, request, spider, response.status)
+
+
+from scrapy.downloadermiddlewares.retry import RetryMiddleware
+
+
+class RemoveInvalidIp(RetryMiddleware):
+
+    def _retry(self, request, reason, spider):
+        remove_fail_ip(request)
+        return super()._retry(request, reason, spider)

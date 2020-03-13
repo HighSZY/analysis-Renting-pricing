@@ -45,7 +45,7 @@ class LunwenPipeline:
                     ))
 
     def close_spider(self, spider):
-        self_mysql.close()
+        self_mysql.conn.close()
 
 
 if __name__ == '__main__':
